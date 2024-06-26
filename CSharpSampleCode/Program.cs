@@ -43,31 +43,41 @@ namespace CSharpSampleCode
 
             #region BESTPOSB - Request and Decoding
             // Send a BestPosB log request
-            WriteCommand(serialPort, streamWriter, "\r\nLOG BESTPOSB ONCE\r\n");
-
+            // WriteCommand(serialPort, streamWriter, "\r\nLOG BESTPOSB ONCE\r\n");
+            WriteCommand(serialPort, streamWriter, "\r\nLOG BESTPOSB ONTIME 1\r\n");
             Thread.Sleep(1000);
-            try
+
+            for (int i = 0; i < 5; i++)
             {
-                // Call the method that will swipe the serial port in search of a binary novatel message
-                byte[] message = getNovAtelMessage(serialPort, streamReader);
-
-                // If a message was found, pass it to the decode method
-                if (message != null)
-                    decodeBinaryMessage(message);
-
-                else
-                    Console.WriteLine("Unable to retrieve message.");
-            }
-            catch (Exception ex)
-            {
-                if (ex is TimeoutException)
-                    Console.WriteLine("Timeout to retrieve the message.");
-
-                else
+                try
                 {
-                    Console.WriteLine("Unfortunately an " + ex.GetType().Name + " happened.");
+                    // Call the method that will swipe the serial port in search of a binary novatel message
+                    byte[] message =
+                        getNovAtelMessage(serialPort, streamReader);
+
+                    // If a message was found, pass it to the decode method
+                    if (message != null)
+                    {
+                        Console.WriteLine($"*** Decoded pos record {i} ***");
+                        decodeBinaryMessage(message);
+                    }
+
+                    else
+                        Console.WriteLine("Unable to retrieve message.");
+                }
+                catch (Exception ex)
+                {
+                    if (ex is TimeoutException)
+                        Console.WriteLine("Timeout to retrieve the message.");
+
+                    else
+                    {
+                        Console.WriteLine("Unfortunately an " +
+                                          ex.GetType().Name + " happened.");
+                    }
                 }
             }
+
             #endregion
 
             #region VERSIONB - Request and Decoding
@@ -187,9 +197,28 @@ namespace CSharpSampleCode
         {
             TcpClient client = new TcpClient("192.168.1.16", 2000);
             var (streamReader, networkStream) = CreateStream(client);
-            string msg = "\r\nLOG BESTPOSA ONCE\r\n";
+            streamReader.DiscardBufferedData();
+            string msg = "\r\nUNLOGALL ALL_PORTS true\r\n";
             byte[] data = System.Text.Encoding.ASCII.GetBytes(msg);
             networkStream.Write(data, 0, data.Length);
+            Thread.Sleep(1000);
+            string? line = streamReader.ReadLine();
+            Console.WriteLine($"Read line={line}");
+
+            ReadBestPosA(networkStream, streamReader);
+
+            return (client, streamReader, networkStream);
+        }
+
+        private static void ReadBestPosA(NetworkStream networkStream,
+            StreamReader streamReader)
+        {
+            string msg;
+            byte[] data;
+            msg = "\r\nLOG BESTPOSA ONCE\r\n";
+            data = System.Text.Encoding.ASCII.GetBytes(msg);
+            networkStream.Write(data, 0, data.Length);
+            Thread.Sleep(1000);
 
             byte[] buf = new byte[1024];
             int nread = buf.Length;
@@ -218,7 +247,6 @@ namespace CSharpSampleCode
                     nread = 0;
                 }
             } while (nread > 0);
-            return (client, streamReader, networkStream);
         }
 
         private static (StreamReader, NetworkStream) CreateStream(TcpClient client)
@@ -227,7 +255,7 @@ namespace CSharpSampleCode
             ns.ReadTimeout = 1000;
             ns.WriteTimeout = 1000;
             var bufferedStream = new BufferedStream(ns);
-            return (new StreamReader(bufferedStream), ns);
+            return (new StreamReader(bufferedStream, Encoding.UTF8), ns);
         }
 
         private static (List<string>, List<string>) TokenizeAsciiLog(string line)
@@ -242,14 +270,22 @@ namespace CSharpSampleCode
                     string[] crcTokens = tokens[^1].Split('*');
                     if (crcTokens.Length > 1)
                     {
-                        var crcExp = ulong.Parse(crcTokens[1],
-                            System.Globalization.NumberStyles.HexNumber);
-                        var crcAct = CalculateBlockCRC32(line,
-                            nameTokens[0].Length + 1,
-                            line.Length - crcTokens[1].Length - 1);
-                        if (crcExp == crcAct)
+                        try
                         {
-                            return MakeHeaderCommandTokens(tokens, name);
+                            var crcExp = ulong.Parse(crcTokens[1],
+                                System.Globalization.NumberStyles.HexNumber);
+                            var crcAct = CalculateBlockCRC32(line,
+                                nameTokens[0].Length + 1,
+                                line.Length - crcTokens[1].Length - 1);
+                            if (crcExp == crcAct)
+                            {
+                                return MakeHeaderCommandTokens(tokens, name);
+                            }
+                        }
+                        catch (System.FormatException)
+                        {
+                            Console.WriteLine(
+                                $"Cannot parse crc from {crcTokens[1]}");
                         }
                     }
                 }
@@ -464,7 +500,8 @@ namespace CSharpSampleCode
             int logType = BitConverter.ToUInt16(message, 4);
 
             // Decode the log based on its type
-            switch ((BINARY_LOG_TYPE)logType)
+            var binaryLogType = (BINARY_LOG_TYPE)logType;
+            switch (binaryLogType)
             {
                 case BINARY_LOG_TYPE.BESTPOSB_LOG_TYPE:
                     Console.WriteLine("**** BESTPOS LOG DECODED:");
@@ -600,8 +637,10 @@ namespace CSharpSampleCode
                         Console.WriteLine("   * Fw Comp Time: " + compTime);
                     }
                     break;
+                default:
+                    Console.WriteLine($"*** Unhandled binaryLogType={binaryLogType}");
+                    break;
             }
-
         }
 
         public enum BINARY_LOG_TYPE
