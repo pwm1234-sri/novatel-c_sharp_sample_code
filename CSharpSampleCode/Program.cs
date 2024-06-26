@@ -47,13 +47,15 @@ namespace CSharpSampleCode
             WriteCommand(serialPort, streamWriter, "\r\nLOG BESTPOSB ONTIME 1\r\n");
             Thread.Sleep(1000);
 
+            NovatelReader rd = new NovatelReader(serialPort, streamReader, 5000);
+
             for (int i = 0; i < 5; i++)
             {
                 try
                 {
                     // Call the method that will swipe the serial port in search of a binary novatel message
                     byte[] message =
-                        getNovAtelMessage(serialPort, streamReader);
+                        getNovatelMessage(rd);
 
                     // If a message was found, pass it to the decode method
                     if (message != null)
@@ -87,7 +89,7 @@ namespace CSharpSampleCode
             try
             {
                 // Call the method that will swipe the serial port in search of a binary novatel message
-                byte[] message = getNovAtelMessage(serialPort, streamReader);
+                byte[] message = getNovatelMessage(rd);
 
                 // If a message was found, pass it to the decode method
                 if (message != null)
@@ -354,20 +356,22 @@ namespace CSharpSampleCode
             Thread.Sleep(250); // Wait 250 milisseconds after the second hardware break signal
         }
 
-        /// <summary>
-        /// Method that search for a NovAtel message in the serial port and return a byte[] or return a null object if the timeOut value is reached.
-        /// Note that this method ignore any bytes that don't match with a NovAtel log. It will search straight for the binary message's sync bytes (0xAA, 0x44 and 0x12) 
-        /// </summary>
-        /// <param name="sp">Serial Port to read the message from</param>
-        /// <param name="timeOut">Timeout in milisseconds. 10000 is the default</param>
-        /// <returns></returns>
-        public static byte[] getNovAtelMessage(SerialPort? sp, StreamReader? sr, int timeOut = 10000)
+        // <summary> Method that search for a NovAtel message in the serial
+        // port and return a byte[] or return a null object if the timeOut
+        // value is reached. Note that this method ignore any bytes that don't
+        // match with a NovAtel log. It will search straight for the binary
+        // message's sync bytes (0xAA, 0x44 and 0x12)
+        // </summary>
+        // <param name="sp">Serial Port to read the message from</param>
+        // <param name="timeOut">Timeout in milisseconds. 10000 is the default</
+        // param>
+        // <returns></returns>
+        public static byte[] getNovatelMessage(NovatelReader rd) 
         {
-            long timeOutLimit = DateTime.Now.Ticks + (TimeSpan.TicksPerMillisecond * timeOut);
+            long timeOutLimit = DateTime.Now.Ticks + (TimeSpan.TicksPerMillisecond * rd.Timeout);
 
             byte[] header = new byte[4] { 0x00, 0x00, 0x00, 0x00 }; // initially 3 bytes for the sync bytes + 1 for the header lenght
 
-            NovatelReader rd = new NovatelReader(sp, sr, timeOut);
             bool readFirst = true;
             do
             {
@@ -1194,11 +1198,13 @@ namespace CSharpSampleCode
     {
         private SerialPort? _serialPort;
         private StreamReader? _streamReader;
+        public int Timeout { get; }
 
         public NovatelReader(SerialPort? sp, StreamReader? sr, int timeOut)
         {
             _serialPort = sp;
             _streamReader = sr;
+            Timeout = timeOut;
             if (sp != null)
             {
                 sp.ReadTimeout = timeOut;
