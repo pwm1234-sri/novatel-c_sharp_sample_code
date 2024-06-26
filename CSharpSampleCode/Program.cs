@@ -1,8 +1,10 @@
 ﻿using System;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading;
 using System.IO.Ports;
+using System.Net.Sockets;
 
 namespace CSharpSampleCode
 {
@@ -15,7 +17,34 @@ namespace CSharpSampleCode
             //args = new string[]{ "/l"};
             args = new string[] { "/c15" };
 #endif
-            SerialPort serialPort = new SerialPort();
+#if true
+            using TcpClient client = new TcpClient("192.168.1.16", 2000);
+            NetworkStream ns = client.GetStream();
+            ns.ReadTimeout = 1000;
+            ns.WriteTimeout = 1000;
+            var stream = new StreamReader(new BufferedStream(ns));
+            string msg = "\r\nLOG BESTPOSA ONCE\r\n";
+            byte[] data = System.Text.Encoding.ASCII.GetBytes(msg);
+            ns.Write(data, 0, data.Length);
+
+            byte[] buf = new byte[1024];
+            int nread = buf.Length;
+            do
+            {
+                try
+                {
+                    string line = stream.ReadLine();
+                    Console.WriteLine($"Read line={line}");
+                    var (tokens, msgName) = TokenizeAsciiLog(line);
+                    Console.WriteLine($"{msgName}: {tokens}");
+                }
+                catch (IOException ex)
+                {
+                    nread = 0;
+                }
+            } while (nread > 0);
+#else
+                SerialPort serialPort = new SerialPort();
 
             #region Arguments Decoding
             if (args.Length == 1 && args[0].IndexOf("/c") == 0)
@@ -137,6 +166,35 @@ namespace CSharpSampleCode
                 }
             }
             #endregion
+#endif
+        }
+
+        private static (string[], string) TokenizeAsciiLog(string line)
+        {
+            string[] tokens = line.Split(',');
+            if (tokens.Length > 1)
+            {
+                string[] nameTokens = tokens[0].Split('#');
+                if (nameTokens.Length > 1)
+                {
+                    string name = nameTokens[1];
+                    string[] crcTokens = tokens[^1].Split('*');
+                    if (crcTokens.Length > 1)
+                    {
+                        var crcExp = ulong.Parse(crcTokens[1],
+                            System.Globalization.NumberStyles.HexNumber);
+                        var crcAct = CalculateBlockCRC32(line,
+                            nameTokens[0].Length + 1,
+                            line.Length - crcTokens[1].Length - 1);
+                        if (crcExp == crcAct)
+                        {
+                            return (tokens, name);
+                        }
+                    }
+                }
+            }
+
+            return (Array.Empty<string>(), string.Empty);
         }
 
         #region Methods
@@ -279,6 +337,20 @@ namespace CSharpSampleCode
             {
                 ulTemp1 = (ulCRC >> 8) & 0x00FFFFFFL;
                 ulTemp2 = CRC32Value(((int)ulCRC ^ buffer[i]) & 0xff);
+                ulCRC = ulTemp1 ^ ulTemp2;
+            }
+            return (ulCRC);
+        }
+        public static ulong CalculateBlockCRC32(string s, int idxBgn, int idxEnd)
+        {
+            ulong ulTemp1;
+            ulong ulTemp2;
+            ulong ulCRC = 0;
+
+            for (int i = idxBgn; i < idxEnd; i++)
+            {
+                ulTemp1 = (ulCRC >> 8) & 0x00FFFFFFL;
+                ulTemp2 = CRC32Value(((int)ulCRC ^ s[i]) & 0xff);
                 ulCRC = ulTemp1 ^ ulTemp2;
             }
             return (ulCRC);
