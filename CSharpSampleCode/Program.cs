@@ -19,38 +19,37 @@ namespace CSharpSampleCode
             // args = new string[] { "/c8" };
             args = Array.Empty<string>();
 #endif
-            TcpClient client = null;
-            StreamReader streamReader;
-            NetworkStream streamWriter;
+            TcpClient? client = null;
+            StreamReader? streamReader = null;
+            NetworkStream? streamWriter = null;
             if (args.Length == 0)
             {
                 (client, streamReader, streamWriter) = TestEthernet();
             }
 
             using var myclient = client;
-
-            if (myclient is not null)
+            SerialPort? serialPort = null;
+            if (myclient is null)
             {
-                return;
-            }
-
-            SerialPort serialPort = CreateSerialPort(args);
-            if (serialPort is null)
-            {
-                string argStr = string.Join(", ", args);
-                Console.WriteLine(
-                    $"Could not open serial port for args={argStr}");
-                return;
+                serialPort = CreateSerialPort(args);
+                if (serialPort is null)
+                {
+                    string argStr = string.Join(", ", args);
+                    Console.WriteLine(
+                        $"Could not open serial port for args={argStr}");
+                    return;
+                }
             }
 
             #region BESTPOSB - Request and Decoding
             // Send a BestPosB log request
-            serialPort.Write("\r\nLOG BESTPOSB ONCE\r\n");
+            WriteCommand(serialPort, streamWriter, "\r\nLOG BESTPOSB ONCE\r\n");
+
             Thread.Sleep(1000);
             try
             {
                 // Call the method that will swipe the serial port in search of a binary novatel message
-                byte[] message = getNovAtelMessage(serialPort);
+                byte[] message = getNovAtelMessage(serialPort, streamReader);
 
                 // If a message was found, pass it to the decode method
                 if (message != null)
@@ -73,12 +72,12 @@ namespace CSharpSampleCode
 
             #region VERSIONB - Request and Decoding
             // Send a BestPosB log request
-            serialPort.Write("\r\nLOG VERSIONB ONCE\r\n");
+            WriteCommand(serialPort, streamWriter, "\r\nLOG VERSIONB ONCE\r\n");
             Thread.Sleep(1000);
             try
             {
                 // Call the method that will swipe the serial port in search of a binary novatel message
-                byte[] message = getNovAtelMessage(serialPort);
+                byte[] message = getNovAtelMessage(serialPort, streamReader);
 
                 // If a message was found, pass it to the decode method
                 if (message != null)
@@ -100,9 +99,23 @@ namespace CSharpSampleCode
             #endregion
         }
 
-        private static SerialPort CreateSerialPort(string[] args)
+        private static void WriteCommand(SerialPort? serialPort,
+            NetworkStream? streamWriter, string cmd)
         {
-            SerialPort serialPort = null;
+            if (serialPort != null)
+            {
+                serialPort?.Write(cmd);
+            }
+            else
+            {
+                byte[] data = System.Text.Encoding.ASCII.GetBytes(cmd);
+                streamWriter?.Write(data, 0, data.Length);
+            }
+        }
+
+        private static SerialPort? CreateSerialPort(string[] args)
+        {
+            SerialPort? serialPort = null;
 
             if (args.Length == 1 && args[0].IndexOf("/c") == 0)
             {
@@ -184,20 +197,27 @@ namespace CSharpSampleCode
             {
                 try
                 {
-                    string line = streamReader.ReadLine();
+                    string? line = streamReader.ReadLine();
                     Console.WriteLine($"Read line={line}");
-                    var (headerTokens, commandTokens) = TokenizeAsciiLog(line);
-                    var hstr = string.Join(", ", headerTokens);
-                    var cstr = string.Join(", ", commandTokens);
-                    Console.WriteLine($"Header:  {hstr}");
-                    Console.WriteLine($"Command: {cstr}");
+                    if (line != null)
+                    {
+                        var (headerTokens, commandTokens) =
+                            TokenizeAsciiLog(line);
+                        var hstr = string.Join(", ", headerTokens);
+                        var cstr = string.Join(", ", commandTokens);
+                        Console.WriteLine($"Header:  {hstr}");
+                        Console.WriteLine($"Command: {cstr}");
+                    }
+                    else
+                    {
+                        nread = 0;
+                    }
                 }
                 catch (IOException)
                 {
                     nread = 0;
                 }
             } while (nread > 0);
-
             return (client, streamReader, networkStream);
         }
 
@@ -305,39 +325,39 @@ namespace CSharpSampleCode
         /// <param name="sp">Serial Port to read the message from</param>
         /// <param name="timeOut">Timeout in milisseconds. 10000 is the default</param>
         /// <returns></returns>
-        public static byte[] getNovAtelMessage(SerialPort sp, int timeOut = 10000)
+        public static byte[] getNovAtelMessage(SerialPort? sp, StreamReader? sr, int timeOut = 10000)
         {
             long timeOutLimit = DateTime.Now.Ticks + (TimeSpan.TicksPerMillisecond * timeOut);
 
             byte[] header = new byte[4] { 0x00, 0x00, 0x00, 0x00 }; // initially 3 bytes for the sync bytes + 1 for the header lenght
 
-            sp.ReadTimeout = timeOut;
+            NovatelReader rd = new NovatelReader(sp, sr, timeOut);
             bool readFirst = true;
             do
             {
                 if (readFirst)
-                    sp.Read(header, 0, 1); // Read the first byte
+                    rd.Read(header, 0, 1); // Read the first byte
 
                 if (header[0] == 0xAA) // Check the first sync byte
                 {
-                    sp.Read(header, 1, 1); // Read the second byte
+                    rd.Read(header, 1, 1); // Read the second byte
                     if (header[1] == 0x44) // Check the second sync byte
                     {
-                        sp.Read(header, 2, 1); // Read the third byte
+                        rd.Read(header, 2, 1); // Read the third byte
                         if (header[2] == 0x12) // Check the third sync byte
                         {
                             // At this point we have the 3 sync bytes, so all that is needed is to load the rest of the message
-                            sp.Read(header, 3, 1); // Read the header lenght in the byte of index 3
+                            rd.Read(header, 3, 1); // Read the header lenght in the byte of index 3
 
                             int headerLenght = header[3];
 
-                            byte[] tmpBuffer = new byte[headerLenght];
+                            byte[]? tmpBuffer = new byte[headerLenght];
                             header.CopyTo(tmpBuffer, 0); // Copy header to a temporary buffer
                             header = new byte[headerLenght];
                             tmpBuffer.CopyTo(header, 0); // Copy the header back into the header array after updating its size
                             tmpBuffer = null;
 
-                            sp.Read(header, 4, headerLenght - 4); // Read the rest of the header
+                            rd.Read(header, 4, headerLenght - 4); // Read the rest of the header
 
                             int messageLenght = BitConverter.ToUInt16(header, 8); // Convert the 8th and 9th bytes to a Ushort that is the body message
 
@@ -345,10 +365,10 @@ namespace CSharpSampleCode
 
                             header.CopyTo(message, 0); // Copy the header to the message
 
-                            sp.Read(message, headerLenght, messageLenght); // Read the whole message into the message buffer, using the headerLenght as offset
+                            rd.Read(message, headerLenght, messageLenght); // Read the whole message into the message buffer, using the headerLenght as offset
 
                             byte[] crc = new byte[4];
-                            sp.Read(crc, 0, 4); // Create and populate the CRC byte array
+                            rd.Read(crc, 0, 4); // Create and populate the CRC byte array
 
                             ulong crc32 = BitConverter.ToUInt32(crc, 0);
 
@@ -541,7 +561,7 @@ namespace CSharpSampleCode
                         int offset = h + (i * 108);
 
                         int compType = BitConverter.ToInt32(message, offset + 4);
-                        Console.WriteLine("* Component Type : " + GetCompTypeString(compType));
+                        Console.WriteLine($"* {i:d02}: Component Type : " + GetCompTypeString(compType));
 
 
                         string model = new string(Encoding.ASCII.GetChars(message, offset + 8, 16));
@@ -1129,5 +1149,38 @@ namespace CSharpSampleCode
         #endregion
         #endregion
 
+    }
+
+    internal class NovatelReader
+    {
+        private SerialPort? _serialPort;
+        private StreamReader? _streamReader;
+
+        public NovatelReader(SerialPort? sp, StreamReader? sr, int timeOut)
+        {
+            _serialPort = sp;
+            _streamReader = sr;
+            if (sp != null)
+            {
+                sp.ReadTimeout = timeOut;
+            }
+        }
+
+        public void Read(byte[] header, int offset, int count)
+        {
+            if (_serialPort is not null)
+            {
+                _serialPort.Read(header, offset, count);
+            }
+            else if (_streamReader is not null)
+            {
+                _streamReader.BaseStream.Read(header, offset, count);
+            }
+            else
+            {
+                throw new ArgumentException(
+                    "Both _serialPort and _streamReader are null");
+            }
+        }
     }
 }
