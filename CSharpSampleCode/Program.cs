@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -35,8 +36,11 @@ namespace CSharpSampleCode
                 {
                     string line = stream.ReadLine();
                     Console.WriteLine($"Read line={line}");
-                    var (tokens, msgName) = TokenizeAsciiLog(line);
-                    Console.WriteLine($"{msgName}: {tokens}");
+                    var (headerTokens, commandTokens) = TokenizeAsciiLog(line);
+                    var hstr = string.Join(", ", headerTokens);
+                    var cstr = string.Join(", ", commandTokens);
+                    Console.WriteLine($"Header:  {hstr}");
+                    Console.WriteLine($"Command: {cstr}");
                 }
                 catch (IOException ex)
                 {
@@ -169,7 +173,7 @@ namespace CSharpSampleCode
 #endif
         }
 
-        private static (string[], string) TokenizeAsciiLog(string line)
+        private static (List<string>, List<string>) TokenizeAsciiLog(string line)
         {
             string[] tokens = line.Split(',');
             if (tokens.Length > 1)
@@ -188,13 +192,49 @@ namespace CSharpSampleCode
                             line.Length - crcTokens[1].Length - 1);
                         if (crcExp == crcAct)
                         {
-                            return (tokens, name);
+                            return MakeHeaderCommandTokens(tokens, name);
                         }
                     }
                 }
             }
 
-            return (Array.Empty<string>(), string.Empty);
+            return (new List<string>(Array.Empty<string>()), new List<string>(
+                Array.Empty<string>()));
+        }
+
+        // split ascii CSV tokens into its header and command sets; see
+        // https://docs.novatel.com/OEM7/Content/Messages/ASCII.htm
+        private static (List<string>, List<string>) MakeHeaderCommandTokens(
+            string[] tokens, string name)
+        {
+            var headerTokens = new List<string>(tokens);
+            var commandTokens = new List<string>(tokens.Length);
+            int commandIdx = commandTokens.Count;
+            // initialize header tokens
+            headerTokens[0] = name;
+            for (int i = 1; i < tokens.Length; i++)
+            {
+                var curToken = tokens[i];
+                if (curToken.Contains(';'))
+                {
+                    // the token with ; is the end of the header
+                    string[] eohTokens = curToken.Split(';');
+                    headerTokens[i] = eohTokens[0];
+                    commandTokens.Add(eohTokens[1]);
+                    var count = headerTokens.Count - i - 1;
+                    headerTokens.RemoveRange(i + 1, count);
+                    commandIdx = i + 1;
+                    break;
+                }
+            }
+            headerTokens.Insert(0, "#");
+
+            for (; commandIdx < tokens.Length; commandIdx += 1)
+            {
+                commandTokens.Add(tokens[commandIdx]);
+            }
+
+            return (headerTokens, commandTokens);
         }
 
         #region Methods
