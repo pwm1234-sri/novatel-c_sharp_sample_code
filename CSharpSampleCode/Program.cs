@@ -15,9 +15,9 @@ namespace CSharpSampleCode
         {
 
 #if DEBUG //For Debug only
-            //args = new string[]{ "/l"};
-            // args = new string[] { "/c15" };
-            args = Array.Empty<string>();
+            // args = new string[]{ "/l"};
+            args = new string[] { "/c8" };
+            // args = Array.Empty<string>();
 #endif
             if (args.Length == 0)
             {
@@ -25,72 +25,15 @@ namespace CSharpSampleCode
                 return;
             }
 
-            SerialPort serialPort = new SerialPort();
+            SerialPort serialPort = CreateSerialPort(args);
 
-            #region Arguments Decoding
-            if (args.Length == 1 && args[0].IndexOf("/c") == 0)
+            if (serialPort is null)
             {
-                try
-                {
-                    int portNum = int.Parse(args[0].Replace("/c", ""));
-                    serialPort.PortName = "COM" + portNum;
-                    serialPort.BaudRate = 9600;
-                    serialPort.Open();
-                }
-                catch
-                {
-                    Console.WriteLine("Error when opening ComPort " + serialPort.PortName);
-                    return;
-                }
-            }
-
-            else if (args.Length == 1 && args[0] == "/l")
-            {
-                Console.WriteLine("* This computer have the following COM Ports: ");
-
-                try
-                {
-                    foreach (string s in SerialPort.GetPortNames())
-                    {
-                        Console.WriteLine("* " + s);
-                    }
-                    return;
-                }
-                catch   // In case there is not even one serial port
-                {
-                    return;
-                }
-            }
-
-            else
-            {
-                Console.WriteLine("*");
-                if (args.Length != 1 || args[0] != "/h")
-                {
-                    Console.WriteLine("* ERROR: unrecognized or incomplete command line.");
-                    Console.WriteLine("*");
-                }
-                Console.WriteLine("* NovAtel C# Sample Code");
-                Console.WriteLine("* Usage: csharpsample [option]");
-                Console.WriteLine("*      /c<port>       : COM Port #");
-                Console.WriteLine("*      /l             : List COM Ports");
-                Console.WriteLine("*      /h             : This help list");
+                string argStr = string.Join(", ", args);
+                Console.WriteLine(
+                    $"Could not open serial port for args={argStr}");
                 return;
             }
-            #endregion
-
-            #region Break Signal
-            Console.WriteLine("Sending break signal to " + serialPort.PortName);
-            // Call the break signal function, passing the serial port as a parameter
-            sendBreakSignal(serialPort);
-            Console.WriteLine("Break sent to " + serialPort.PortName);
-            Console.WriteLine(serialPort.PortName + " must be at its default configuration now.");
-            #endregion
-
-            // Discard any data in the in and out buffers
-            serialPort.DiscardInBuffer();
-            serialPort.DiscardOutBuffer();
-            Thread.Sleep(1000);
 
             #region BESTPOSB - Request and Decoding
             // Send a BestPosB log request
@@ -149,6 +92,76 @@ namespace CSharpSampleCode
             #endregion
         }
 
+        private static SerialPort CreateSerialPort(string[] args)
+        {
+            SerialPort serialPort = null;
+
+            if (args.Length == 1 && args[0].IndexOf("/c") == 0)
+            {
+                string portName = "N/A";
+                try
+                {
+                    int portNum = int.Parse(args[0].Replace("/c", ""));
+                    portName = "COM" + portNum;
+                    serialPort = new SerialPort();
+                    serialPort.PortName = portName;
+                    serialPort.BaudRate = 9600;
+                    serialPort.Open();
+
+                    #region Break Signal
+                    Console.WriteLine("Sending break signal to " + serialPort.PortName);
+                    // Call the break signal function, passing the serial port as a parameter
+                    sendBreakSignal(serialPort);
+                    Console.WriteLine("Break sent to " + serialPort.PortName);
+                    Console.WriteLine(serialPort.PortName + " must be at its default configuration now.");
+                    #endregion
+
+                    // Discard any data in the in and out buffers
+                    serialPort.DiscardInBuffer();
+                    serialPort.DiscardOutBuffer();
+                    Thread.Sleep(1000);
+                }
+                catch
+                {
+                    Console.WriteLine("Error when opening ComPort " + portName);
+                    serialPort = null;
+                }
+            }
+
+            else if (args.Length == 1 && args[0] == "/l")
+            {
+                Console.WriteLine("* This computer have the following COM Ports: ");
+
+                try
+                {
+                    foreach (string s in SerialPort.GetPortNames())
+                    {
+                        Console.WriteLine("* " + s);
+                    }
+                }
+                catch   // In case there is not even one serial port
+                {
+                }
+            }
+
+            else
+            {
+                Console.WriteLine("*");
+                if (args.Length != 1 || args[0] != "/h")
+                {
+                    Console.WriteLine("* ERROR: unrecognized or incomplete command line.");
+                    Console.WriteLine("*");
+                }
+                Console.WriteLine("* NovAtel C# Sample Code");
+                Console.WriteLine("* Usage: csharpsample [option]");
+                Console.WriteLine("*      /c<port>       : COM Port #");
+                Console.WriteLine("*      /l             : List COM Ports");
+                Console.WriteLine("*      /h             : This help list");
+            }
+
+            return serialPort;
+        }
+
         private static void TestEthernet()
         {
             using TcpClient client = new TcpClient("192.168.1.16", 2000);
@@ -174,7 +187,7 @@ namespace CSharpSampleCode
                     Console.WriteLine($"Header:  {hstr}");
                     Console.WriteLine($"Command: {cstr}");
                 }
-                catch (IOException ex)
+                catch (IOException)
                 {
                     nread = 0;
                 }
