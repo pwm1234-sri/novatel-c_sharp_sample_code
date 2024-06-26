@@ -16,39 +16,16 @@ namespace CSharpSampleCode
 
 #if DEBUG //For Debug only
             //args = new string[]{ "/l"};
-            args = new string[] { "/c15" };
+            // args = new string[] { "/c15" };
+            args = Array.Empty<string>();
 #endif
-#if true
-            using TcpClient client = new TcpClient("192.168.1.16", 2000);
-            NetworkStream ns = client.GetStream();
-            ns.ReadTimeout = 1000;
-            ns.WriteTimeout = 1000;
-            var stream = new StreamReader(new BufferedStream(ns));
-            string msg = "\r\nLOG BESTPOSA ONCE\r\n";
-            byte[] data = System.Text.Encoding.ASCII.GetBytes(msg);
-            ns.Write(data, 0, data.Length);
-
-            byte[] buf = new byte[1024];
-            int nread = buf.Length;
-            do
+            if (args.Length == 0)
             {
-                try
-                {
-                    string line = stream.ReadLine();
-                    Console.WriteLine($"Read line={line}");
-                    var (headerTokens, commandTokens) = TokenizeAsciiLog(line);
-                    var hstr = string.Join(", ", headerTokens);
-                    var cstr = string.Join(", ", commandTokens);
-                    Console.WriteLine($"Header:  {hstr}");
-                    Console.WriteLine($"Command: {cstr}");
-                }
-                catch (IOException ex)
-                {
-                    nread = 0;
-                }
-            } while (nread > 0);
-#else
-                SerialPort serialPort = new SerialPort();
+                TestEthernet();
+                return;
+            }
+
+            SerialPort serialPort = new SerialPort();
 
             #region Arguments Decoding
             if (args.Length == 1 && args[0].IndexOf("/c") == 0)
@@ -170,7 +147,38 @@ namespace CSharpSampleCode
                 }
             }
             #endregion
-#endif
+        }
+
+        private static void TestEthernet()
+        {
+            using TcpClient client = new TcpClient("192.168.1.16", 2000);
+            NetworkStream ns = client.GetStream();
+            ns.ReadTimeout = 1000;
+            ns.WriteTimeout = 1000;
+            var stream = new StreamReader(new BufferedStream(ns));
+            string msg = "\r\nLOG BESTPOSA ONCE\r\n";
+            byte[] data = System.Text.Encoding.ASCII.GetBytes(msg);
+            ns.Write(data, 0, data.Length);
+
+            byte[] buf = new byte[1024];
+            int nread = buf.Length;
+            do
+            {
+                try
+                {
+                    string line = stream.ReadLine();
+                    Console.WriteLine($"Read line={line}");
+                    var (headerTokens, commandTokens) = TokenizeAsciiLog(line);
+                    var hstr = string.Join(", ", headerTokens);
+                    var cstr = string.Join(", ", commandTokens);
+                    Console.WriteLine($"Header:  {hstr}");
+                    Console.WriteLine($"Command: {cstr}");
+                }
+                catch (IOException ex)
+                {
+                    nread = 0;
+                }
+            } while (nread > 0);
         }
 
         private static (List<string>, List<string>) TokenizeAsciiLog(string line)
