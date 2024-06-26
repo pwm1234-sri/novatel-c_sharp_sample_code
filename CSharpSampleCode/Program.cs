@@ -16,17 +16,25 @@ namespace CSharpSampleCode
 
 #if DEBUG //For Debug only
             // args = new string[]{ "/l"};
-            args = new string[] { "/c8" };
-            // args = Array.Empty<string>();
+            // args = new string[] { "/c8" };
+            args = Array.Empty<string>();
 #endif
+            TcpClient client = null;
+            StreamReader streamReader;
+            NetworkStream streamWriter;
             if (args.Length == 0)
             {
-                TestEthernet();
+                (client, streamReader, streamWriter) = TestEthernet();
+            }
+
+            using var myclient = client;
+
+            if (myclient is not null)
+            {
                 return;
             }
 
             SerialPort serialPort = CreateSerialPort(args);
-
             if (serialPort is null)
             {
                 string argStr = string.Join(", ", args);
@@ -162,16 +170,13 @@ namespace CSharpSampleCode
             return serialPort;
         }
 
-        private static void TestEthernet()
+        private static (TcpClient, StreamReader, NetworkStream) TestEthernet()
         {
-            using TcpClient client = new TcpClient("192.168.1.16", 2000);
-            NetworkStream ns = client.GetStream();
-            ns.ReadTimeout = 1000;
-            ns.WriteTimeout = 1000;
-            var stream = new StreamReader(new BufferedStream(ns));
+            TcpClient client = new TcpClient("192.168.1.16", 2000);
+            var (streamReader, networkStream) = CreateStream(client);
             string msg = "\r\nLOG BESTPOSA ONCE\r\n";
             byte[] data = System.Text.Encoding.ASCII.GetBytes(msg);
-            ns.Write(data, 0, data.Length);
+            networkStream.Write(data, 0, data.Length);
 
             byte[] buf = new byte[1024];
             int nread = buf.Length;
@@ -179,7 +184,7 @@ namespace CSharpSampleCode
             {
                 try
                 {
-                    string line = stream.ReadLine();
+                    string line = streamReader.ReadLine();
                     Console.WriteLine($"Read line={line}");
                     var (headerTokens, commandTokens) = TokenizeAsciiLog(line);
                     var hstr = string.Join(", ", headerTokens);
@@ -192,6 +197,17 @@ namespace CSharpSampleCode
                     nread = 0;
                 }
             } while (nread > 0);
+
+            return (client, streamReader, networkStream);
+        }
+
+        private static (StreamReader, NetworkStream) CreateStream(TcpClient client)
+        {
+            NetworkStream ns = client.GetStream();
+            ns.ReadTimeout = 1000;
+            ns.WriteTimeout = 1000;
+            var bufferedStream = new BufferedStream(ns);
+            return (new StreamReader(bufferedStream), ns);
         }
 
         private static (List<string>, List<string>) TokenizeAsciiLog(string line)
