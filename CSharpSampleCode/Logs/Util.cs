@@ -95,7 +95,7 @@ public class Util
                 {
                     var msg = Bestpos.Decode(message, logType, h);
                     Console.WriteLine(msg.ToPrettyString());
-                    Console.WriteLine($"Bestpos:\n{msg}\n\n");
+                    // Console.WriteLine($"Bestpos:\n{msg}\n\n");
                     break;
                 }
 
@@ -103,7 +103,7 @@ public class Util
                 {
                     var msg = VersionComponent.DecodeVersionComponents(message, logType, h);
                     string prettyStr = string.Join("\n----\n", msg);
-                    Console.WriteLine(prettyStr);
+                    // Console.WriteLine(prettyStr);
                     Console.WriteLine($"Version:\n{msg.ToPrettyString()}\n\n");
                     break;
                 }
@@ -140,6 +140,7 @@ public class Util
                     }
                     catch (FormatException)
                     {
+                        // TODO: this should be a log.error
                         Console.WriteLine(
                             $"Cannot parse crc from {crcTokens[1]}");
                     }
