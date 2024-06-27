@@ -395,6 +395,9 @@ namespace CSharpSampleCode
         public static byte[] getNovatelMessage(NovatelReader rd) 
         {
             long timeOutLimit = DateTime.Now.Ticks + (TimeSpan.TicksPerMillisecond * rd.Timeout);
+#if DEBUG
+            timeOutLimit = DateTime.MaxValue.Ticks;
+#endif
 
             byte[] header = new byte[4] { 0x00, 0x00, 0x00, 0x00 }; // initially 3 bytes for the sync bytes + 1 for the header lenght
 
@@ -455,12 +458,8 @@ namespace CSharpSampleCode
                 }
                 else
                     readFirst = true;
-#if DEBUG
-            } while (true);
-#else
             } while (timeOutLimit > DateTime.Now.Ticks);
-#endif
-            return null;
+            return Array.Empty<byte>();
         }
 
         #region Crc Calculations
@@ -534,143 +533,158 @@ namespace CSharpSampleCode
             switch (binaryLogType)
             {
                 case BINARY_LOG_TYPE.BESTPOSB_LOG_TYPE:
-                    Console.WriteLine("**** BESTPOS LOG DECODED:");
-                    Console.WriteLine("* Message ID     : " + logType);
-
-                    int solnStatus = BitConverter.ToInt32(message, h);
-                    Console.WriteLine("* Solution Status: " + GetSolnStatusString(solnStatus));
-
-                    int posType = BitConverter.ToInt32(message, h + 4);
-                    Console.WriteLine("* Position Type  : " + GetPosTypeString(posType));
-
-                    double lat = BitConverter.ToDouble(message, h + 8);
-                    Console.WriteLine("* Latitude       : " + lat.ToString("F10"));
-
-                    double lon = BitConverter.ToDouble(message, h + 16);
-                    Console.WriteLine("* Longitude      : " + lon.ToString("F10"));
-
-                    double hgt = BitConverter.ToDouble(message, h + 24);
-                    Console.WriteLine("* Height         : " + hgt.ToString("F10"));
-
-                    float undulation = BitConverter.ToSingle(message, h + 32);
-                    Console.WriteLine("* Undulation     : " + undulation.ToString("F4"));
-
-                    int datum = BitConverter.ToInt32(message, h + 36);
-                    Console.WriteLine("* Datum          : " + GetDatumString(datum));
-
-                    float latStdDev = BitConverter.ToSingle(message, h + 40);
-                    Console.WriteLine("* Lat Std Dev    : " + latStdDev.ToString("F4"));
-
-                    float lonStdDev = BitConverter.ToSingle(message, h + 44);
-                    Console.WriteLine("* Lon Std Dev    : " + lonStdDev.ToString("F4"));
-
-                    float hgtStdDev = BitConverter.ToSingle(message, h + 48);
-                    Console.WriteLine("* Height Std Dev : " + hgtStdDev.ToString("F4"));
-
-
-                    string baseId = new string(Encoding.ASCII.GetChars(message, h + 52, 4));
-                    if (baseId.Contains('\0'))
-                        baseId = baseId.Substring(0, baseId.IndexOf('\0'));
-                    Console.WriteLine("* Base Station ID: " + baseId);
-
-                    float diffAge = BitConverter.ToSingle(message, h + 56);
-                    Console.WriteLine("* Diff Age       : " + diffAge.ToString("F2"));
-
-                    float solAge = BitConverter.ToSingle(message, h + 60);
-                    Console.WriteLine("* Solution Age   : " + solAge.ToString("F2"));
-
-                    int satsTracked = message[h + 64];
-                    Console.WriteLine("* Sat Tracked    : " + satsTracked);
-
-                    int satSolution = message[h + 65];
-                    Console.WriteLine("* Sat Used       : " + satSolution);
-
-                    int satsL1E1B1 = message[h + 66];
-                    Console.WriteLine("* Sat L1E1B1 Used: " + satsL1E1B1);
-
-                    int satsMulti = message[h + 67];
-                    Console.WriteLine("* Sat MultiF Used: " + satsMulti);
-
-                    byte extSolnStatus = message[h + 69];
-                    if (posType == (int)POSTYPE.SINGLE) //if the receiver have a PDP solution
-                        if (IsFlagActive(extSolnStatus, EXTENDED_SOLN_STATUS.Glide))
-                            Console.WriteLine("* Single Solution: GLIDE");
-                    Console.WriteLine("* Klobuchar Model: " + IsFlagActive(extSolnStatus, EXTENDED_SOLN_STATUS.IonoCorrKlobuchar).ToString());
-                    Console.WriteLine("* SBAS Broadcast : " + IsFlagActive(extSolnStatus, EXTENDED_SOLN_STATUS.IonoCorrSBAS).ToString());
-                    Console.WriteLine("* Multi-Freq Comp: " + IsFlagActive(extSolnStatus, EXTENDED_SOLN_STATUS.IonoCorrMultiFreq).ToString());
-                    Console.WriteLine("* PSRDiff Correct: " + IsFlagActive(extSolnStatus, EXTENDED_SOLN_STATUS.IonoCorrPSRDIFF).ToString());
-                    Console.WriteLine("* NovAtel Iono   : " + IsFlagActive(extSolnStatus, EXTENDED_SOLN_STATUS.IonoCorrNovatelIono).ToString());
-                    Console.WriteLine("* Antenna Warning: " + IsFlagActive(extSolnStatus, EXTENDED_SOLN_STATUS.AntennaWarning).ToString());
-
-                    byte maskGalBei = message[h + 70];
-                    Console.WriteLine("* Galileo E1     : " + IsFlagActive(maskGalBei, SIGNALS_USED_MASK.E1_Used).ToString());
-                    Console.WriteLine("* BeiDou B1      : " + IsFlagActive(maskGalBei, SIGNALS_USED_MASK.BEIDOU_B1_Used).ToString());
-                    Console.WriteLine("* BeiDou B2      : " + IsFlagActive(maskGalBei, SIGNALS_USED_MASK.BEIDOU_B2_Used).ToString());
-
-                    byte maskGpsGlo = message[h + 71];
-                    Console.WriteLine("* GPS L1         : " + IsFlagActive(maskGpsGlo, SIGNALS_USED_MASK.GPS_L1_Used).ToString());
-                    Console.WriteLine("* GPS L2         : " + IsFlagActive(maskGpsGlo, SIGNALS_USED_MASK.GPS_L2_Used).ToString());
-                    Console.WriteLine("* GPS L5         : " + IsFlagActive(maskGpsGlo, SIGNALS_USED_MASK.GPS_L5_Used).ToString());
-                    Console.WriteLine("* Glonass L1     : " + IsFlagActive(maskGpsGlo, SIGNALS_USED_MASK.GLO_L1_Used).ToString());
-                    Console.WriteLine("* Glonass L2     : " + IsFlagActive(maskGpsGlo, SIGNALS_USED_MASK.GLO_L2_Used).ToString());
-                    Console.WriteLine();
+                    DecodeBestpos(message, logType, h);
                     break;
 
                 case BINARY_LOG_TYPE.VERB_LOG_TYPE:
-                    Console.WriteLine("**** VERSION LOG DECODED:");
-                    Console.WriteLine("* Message ID     : " + logType);
-
-                    int numberComp = BitConverter.ToInt32(message, h);
-                    Console.WriteLine("* # of Components: " + numberComp);
-
-                    for (int i = 0; i < numberComp; i++)
-                    {
-                        int offset = h + (i * 108);
-
-                        int compType = BitConverter.ToInt32(message, offset + 4);
-                        Console.WriteLine($"* {i:d02}: Component Type : " + GetCompTypeString(compType));
-
-
-                        string model = new string(Encoding.ASCII.GetChars(message, offset + 8, 16));
-                        if (model.Contains('\0'))
-                            model = model.Substring(0, model.IndexOf('\0'));
-                        Console.WriteLine("   * Comp Model  : " + model);
-
-                        string psn = new string(Encoding.ASCII.GetChars(message, offset + 24, 16));
-                        if (psn.Contains('\0'))
-                            psn = psn.Substring(0, psn.IndexOf('\0'));
-                        Console.WriteLine("   * Serial #    : " + psn);
-
-                        string hwVersion = new string(Encoding.ASCII.GetChars(message, offset + 40, 16));
-                        if (hwVersion.Contains('\0'))
-                            hwVersion = hwVersion.Substring(0, hwVersion.IndexOf('\0'));
-                        Console.WriteLine("   * Hw Version  : " + hwVersion);
-
-                        string swVersion = new string(Encoding.ASCII.GetChars(message, offset + 56, 16));
-                        if (swVersion.Contains('\0'))
-                            swVersion = swVersion.Substring(0, swVersion.IndexOf('\0'));
-                        Console.WriteLine("   * Sw Version  : " + swVersion);
-
-                        string bootVersion = new string(Encoding.ASCII.GetChars(message, offset + 72, 16));
-                        if (bootVersion.Contains('\0'))
-                            bootVersion = bootVersion.Substring(0, bootVersion.IndexOf('\0'));
-                        Console.WriteLine("   * Boot Version: " + bootVersion);
-
-                        string compDate = new string(Encoding.ASCII.GetChars(message, offset + 88, 12));
-                        if (compDate.Contains('\0'))
-                            compDate = compDate.Substring(0, compDate.IndexOf('\0'));
-                        Console.WriteLine("   * Fw Comp Date: " + compDate);
-
-                        string compTime = new string(Encoding.ASCII.GetChars(message, offset + 100, 12));
-                        if (compTime.Contains('\0'))
-                            compTime = compTime.Substring(0, compTime.IndexOf('\0'));
-                        Console.WriteLine("   * Fw Comp Time: " + compTime);
-                    }
+                    DecodeVersion(message, logType, h);
                     break;
                 default:
                     Console.WriteLine($"*** Unhandled binaryLogType={binaryLogType}");
                     break;
             }
+        }
+
+        private static void DecodeBestpos(byte[] message, int logType, int h)
+        {
+            Console.WriteLine("**** BESTPOS LOG DECODED:");
+            Console.WriteLine("* Message ID     : " + logType);
+
+            int solnStatus = BitConverter.ToInt32(message, h);
+            Console.WriteLine("* Solution Status: " + GetSolnStatusString(solnStatus));
+
+            int posType = BitConverter.ToInt32(message, h + 4);
+            Console.WriteLine("* Position Type  : " + GetPosTypeString(posType));
+
+            double lat = BitConverter.ToDouble(message, h + 8);
+            Console.WriteLine("* Latitude       : " + lat.ToString("F10"));
+
+            double lon = BitConverter.ToDouble(message, h + 16);
+            Console.WriteLine("* Longitude      : " + lon.ToString("F10"));
+
+            double hgt = BitConverter.ToDouble(message, h + 24);
+            Console.WriteLine("* Height         : " + hgt.ToString("F10"));
+
+            float undulation = BitConverter.ToSingle(message, h + 32);
+            Console.WriteLine("* Undulation     : " + undulation.ToString("F4"));
+
+            int datum = BitConverter.ToInt32(message, h + 36);
+            Console.WriteLine("* Datum          : " + GetDatumString(datum));
+
+            float latStdDev = BitConverter.ToSingle(message, h + 40);
+            Console.WriteLine("* Lat Std Dev    : " + latStdDev.ToString("F4"));
+
+            float lonStdDev = BitConverter.ToSingle(message, h + 44);
+            Console.WriteLine("* Lon Std Dev    : " + lonStdDev.ToString("F4"));
+
+            float hgtStdDev = BitConverter.ToSingle(message, h + 48);
+            Console.WriteLine("* Height Std Dev : " + hgtStdDev.ToString("F4"));
+
+
+            string baseId = new string(Encoding.ASCII.GetChars(message, h + 52, 4));
+            if (baseId.Contains('\0'))
+                baseId = baseId.Substring(0, baseId.IndexOf('\0'));
+            Console.WriteLine("* Base Station ID: " + baseId);
+
+            float diffAge = BitConverter.ToSingle(message, h + 56);
+            Console.WriteLine("* Diff Age       : " + diffAge.ToString("F2"));
+
+            float solAge = BitConverter.ToSingle(message, h + 60);
+            Console.WriteLine("* Solution Age   : " + solAge.ToString("F2"));
+
+            int satsTracked = message[h + 64];
+            Console.WriteLine("* Sat Tracked    : " + satsTracked);
+
+            int satSolution = message[h + 65];
+            Console.WriteLine("* Sat Used       : " + satSolution);
+
+            int satsL1E1B1 = message[h + 66];
+            Console.WriteLine("* Sat L1E1B1 Used: " + satsL1E1B1);
+
+            int satsMulti = message[h + 67];
+            Console.WriteLine("* Sat MultiF Used: " + satsMulti);
+
+            byte extSolnStatus = message[h + 69];
+            if (posType == (int)POSTYPE.SINGLE) //if the receiver have a PDP solution
+                if (IsFlagActive(extSolnStatus, EXTENDED_SOLN_STATUS.Glide))
+                    Console.WriteLine("* Single Solution: GLIDE");
+            Console.WriteLine("* Klobuchar Model: " + IsFlagActive(extSolnStatus, EXTENDED_SOLN_STATUS.IonoCorrKlobuchar).ToString());
+            Console.WriteLine("* SBAS Broadcast : " + IsFlagActive(extSolnStatus, EXTENDED_SOLN_STATUS.IonoCorrSBAS).ToString());
+            Console.WriteLine("* Multi-Freq Comp: " + IsFlagActive(extSolnStatus, EXTENDED_SOLN_STATUS.IonoCorrMultiFreq).ToString());
+            Console.WriteLine("* PSRDiff Correct: " + IsFlagActive(extSolnStatus, EXTENDED_SOLN_STATUS.IonoCorrPSRDIFF).ToString());
+            Console.WriteLine("* NovAtel Iono   : " + IsFlagActive(extSolnStatus, EXTENDED_SOLN_STATUS.IonoCorrNovatelIono).ToString());
+            Console.WriteLine("* Antenna Warning: " + IsFlagActive(extSolnStatus, EXTENDED_SOLN_STATUS.AntennaWarning).ToString());
+
+            byte maskGalBei = message[h + 70];
+            Console.WriteLine("* Galileo E1     : " + IsFlagActive(maskGalBei, SIGNALS_USED_MASK.E1_Used).ToString());
+            Console.WriteLine("* BeiDou B1      : " + IsFlagActive(maskGalBei, SIGNALS_USED_MASK.BEIDOU_B1_Used).ToString());
+            Console.WriteLine("* BeiDou B2      : " + IsFlagActive(maskGalBei, SIGNALS_USED_MASK.BEIDOU_B2_Used).ToString());
+
+            byte maskGpsGlo = message[h + 71];
+            Console.WriteLine("* GPS L1         : " + IsFlagActive(maskGpsGlo, SIGNALS_USED_MASK.GPS_L1_Used).ToString());
+            Console.WriteLine("* GPS L2         : " + IsFlagActive(maskGpsGlo, SIGNALS_USED_MASK.GPS_L2_Used).ToString());
+            Console.WriteLine("* GPS L5         : " + IsFlagActive(maskGpsGlo, SIGNALS_USED_MASK.GPS_L5_Used).ToString());
+            Console.WriteLine("* Glonass L1     : " + IsFlagActive(maskGpsGlo, SIGNALS_USED_MASK.GLO_L1_Used).ToString());
+            Console.WriteLine("* Glonass L2     : " + IsFlagActive(maskGpsGlo, SIGNALS_USED_MASK.GLO_L2_Used).ToString());
+            Console.WriteLine();
+        }
+
+        private static void DecodeVersion(byte[] message, int logType, int h)
+        {
+            Console.WriteLine("**** VERSION LOG DECODED:");
+            Console.WriteLine("* Message ID     : " + logType);
+
+            int numberComp = BitConverter.ToInt32(message, h);
+            Console.WriteLine("* # of Components: " + numberComp);
+
+            for (int i = 0; i < numberComp; i++)
+            {
+                DecodeVersionComponent(message, h, i);
+            }
+        }
+
+        private static void DecodeVersionComponent(byte[] message, int h, int i)
+        {
+            int offset = h + (i * 108);
+
+            int compType = BitConverter.ToInt32(message, offset + 4);
+            Console.WriteLine($"* {i:d02}: Component Type : " + GetCompTypeString(compType));
+
+
+            string model = new string(Encoding.ASCII.GetChars(message, offset + 8, 16));
+            if (model.Contains('\0'))
+                model = model.Substring(0, model.IndexOf('\0'));
+            Console.WriteLine("   * Comp Model  : " + model);
+
+            string psn = new string(Encoding.ASCII.GetChars(message, offset + 24, 16));
+            if (psn.Contains('\0'))
+                psn = psn.Substring(0, psn.IndexOf('\0'));
+            Console.WriteLine("   * Serial #    : " + psn);
+
+            string hwVersion = new string(Encoding.ASCII.GetChars(message, offset + 40, 16));
+            if (hwVersion.Contains('\0'))
+                hwVersion = hwVersion.Substring(0, hwVersion.IndexOf('\0'));
+            Console.WriteLine("   * Hw Version  : " + hwVersion);
+
+            string swVersion = new string(Encoding.ASCII.GetChars(message, offset + 56, 16));
+            if (swVersion.Contains('\0'))
+                swVersion = swVersion.Substring(0, swVersion.IndexOf('\0'));
+            Console.WriteLine("   * Sw Version  : " + swVersion);
+
+            string bootVersion = new string(Encoding.ASCII.GetChars(message, offset + 72, 16));
+            if (bootVersion.Contains('\0'))
+                bootVersion = bootVersion.Substring(0, bootVersion.IndexOf('\0'));
+            Console.WriteLine("   * Boot Version: " + bootVersion);
+
+            string compDate = new string(Encoding.ASCII.GetChars(message, offset + 88, 12));
+            if (compDate.Contains('\0'))
+                compDate = compDate.Substring(0, compDate.IndexOf('\0'));
+            Console.WriteLine("   * Fw Comp Date: " + compDate);
+
+            string compTime = new string(Encoding.ASCII.GetChars(message, offset + 100, 12));
+            if (compTime.Contains('\0'))
+                compTime = compTime.Substring(0, compTime.IndexOf('\0'));
+            Console.WriteLine("   * Fw Comp Time: " + compTime);
         }
 
         public enum BINARY_LOG_TYPE
@@ -1191,7 +1205,7 @@ namespace CSharpSampleCode
             }
         }
         #endregion
-        #endregion
+#endregion
 
     }
 
