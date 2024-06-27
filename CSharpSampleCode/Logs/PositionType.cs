@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace CSharpSampleCode.Logs;
+﻿namespace CSharpSampleCode.Logs;
 
 public enum PositionType
 {
@@ -97,6 +95,8 @@ public static class PositionTypeExtensions
             case PositionType.PPP_BASIC_CONVERGING: cpRetValue = "PPP_BASIC_CONVERGING"; break;
             case PositionType.INS_PPP_BASIC: cpRetValue = "INS_PPP_BASIC"; break;
             case PositionType.INS_PPP_BASIC_CONVERGING: cpRetValue = "INS_PPP_BASIC_CONVERGING"; break;
+
+            // ReSharper disable once RedundantEmptySwitchSection
             default:
                 break;   // Absolutely impossible to reach here
         }

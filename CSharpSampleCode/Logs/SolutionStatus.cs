@@ -1,7 +1,9 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using System.Diagnostics.CodeAnalysis;
 
 namespace CSharpSampleCode.Logs;
 
+[SuppressMessage("ReSharper", "UnusedMember.Global")]
 public enum SolutionStatus
 {
     [Display(Name = "Solution status not set")]

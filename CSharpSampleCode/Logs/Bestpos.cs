@@ -29,7 +29,6 @@ public record Bestpos
     public byte ExtSolutionStatus { get; set; }
     public byte GalileoSigMask { get; set; }
     public byte GpsSigMask { get; set; }
-    public bool ValidCrc { get; set; }
 
     public string ToPrettyString()
     {
@@ -78,8 +77,10 @@ public record Bestpos
     }
     public static Bestpos Decode(byte[] message, int logType, int h)
     {
-        Bestpos val = new();
-        val.LogType = logType;
+        Bestpos val = new()
+        {
+            LogType = logType
+        };
         int solnStatus = BitConverter.ToInt32(message, h);
         val.SolutionStatus = (SolutionStatus)solnStatus;
         int posType = BitConverter.ToInt32(message, h + 4);
@@ -92,10 +93,7 @@ public record Bestpos
         val.LatSigma = BitConverter.ToSingle(message, h + 40);
         val.LonSigma = BitConverter.ToSingle(message, h + 44);
         val.HgtSigma = BitConverter.ToSingle(message, h + 48);
-        var baseId = new string(Encoding.ASCII.GetChars(message, h + 52, 4));
-        if (baseId.Contains('\0'))
-            baseId = baseId.Substring(0, baseId.IndexOf('\0'));
-        val.BaseId = baseId;
+        val.BaseId = Util.DecodeString(message, h + 52, 4);
         val.DiffAge = BitConverter.ToSingle(message, h + 56);
         val.SolutionAge = BitConverter.ToSingle(message, h + 60);
         val.NumSatsTracked = message[h + 64];

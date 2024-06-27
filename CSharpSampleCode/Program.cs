@@ -6,6 +6,7 @@ using System.Text;
 using System.Threading;
 using System.IO.Ports;
 using System.Net.Sockets;
+using CSharpSampleCode.Logs;
 
 namespace CSharpSampleCode
 {
@@ -47,7 +48,7 @@ namespace CSharpSampleCode
             WriteCommand(serialPort, streamWriter, "\r\nLOG BESTPOSB ONTIME 1\r\n");
             Thread.Sleep(1000);
 
-            NovatelReader rd = new NovatelReader(serialPort, streamReader, 5000);
+            NovatelReader rd = new(serialPort, streamReader, 5000);
 
             for (int i = 0; i < 5; i++)
             {
@@ -55,13 +56,13 @@ namespace CSharpSampleCode
                 {
                     // Call the method that will swipe the serial port in search of a binary novatel message
                     byte[] message =
-                        getNovatelMessage(rd);
+                        GetNovatelMessage(rd);
 
                     // If a message was found, pass it to the decode method
                     if (message != null)
                     {
                         Console.WriteLine($"*** Decoded pos record {i} ***");
-                        DecodeBinaryMessage(message);
+                        Util.DecodeBinaryMessage(message);
                     }
 
                     else
@@ -89,11 +90,11 @@ namespace CSharpSampleCode
             try
             {
                 // Call the method that will swipe the serial port in search of a binary novatel message
-                byte[] message = getNovatelMessage(rd);
+                byte[] message = GetNovatelMessage(rd);
 
                 // If a message was found, pass it to the decode method
                 if (message != null)
-                    DecodeBinaryMessage(message);
+                    Util.DecodeBinaryMessage(message);
 
                 else
                     Console.WriteLine("Unable to retrieve message.");
@@ -258,7 +259,7 @@ namespace CSharpSampleCode
                     if (line != null)
                     {
                         var (headerTokens, commandTokens) =
-                            TokenizeAsciiLog(line);
+                            Util.TokenizeAsciiLog(line);
                         var hstr = string.Join(", ", headerTokens);
                         var cstr = string.Join(", ", commandTokens);
                         Console.WriteLine($"Header:  {hstr}");
@@ -283,78 +284,6 @@ namespace CSharpSampleCode
             ns.WriteTimeout = 1000;
             var bufferedStream = new BufferedStream(ns);
             return (new StreamReader(bufferedStream, Encoding.UTF8), ns);
-        }
-
-        private static (List<string>, List<string>) TokenizeAsciiLog(string line)
-        {
-            string[] tokens = line.Split(',');
-            if (tokens.Length > 1)
-            {
-                string[] nameTokens = tokens[0].Split('#');
-                if (nameTokens.Length > 1)
-                {
-                    string name = nameTokens[1];
-                    string[] crcTokens = tokens[^1].Split('*');
-                    if (crcTokens.Length > 1)
-                    {
-                        try
-                        {
-                            var crcExp = ulong.Parse(crcTokens[1],
-                                System.Globalization.NumberStyles.HexNumber);
-                            var crcAct = CalculateBlockCRC32(line,
-                                nameTokens[0].Length + 1,
-                                line.Length - crcTokens[1].Length - 1);
-                            if (crcExp == crcAct)
-                            {
-                                return MakeHeaderCommandTokens(tokens, name);
-                            }
-                        }
-                        catch (System.FormatException)
-                        {
-                            Console.WriteLine(
-                                $"Cannot parse crc from {crcTokens[1]}");
-                        }
-                    }
-                }
-            }
-
-            return (new List<string>(Array.Empty<string>()), new List<string>(
-                Array.Empty<string>()));
-        }
-
-        // split ascii CSV tokens into its header and command sets; see
-        // https://docs.novatel.com/OEM7/Content/Messages/ASCII.htm
-        private static (List<string>, List<string>) MakeHeaderCommandTokens(
-            string[] tokens, string name)
-        {
-            var headerTokens = new List<string>(tokens);
-            var commandTokens = new List<string>(tokens.Length);
-            int commandIdx = commandTokens.Count;
-            // initialize header tokens
-            headerTokens[0] = name;
-            for (int i = 1; i < tokens.Length; i++)
-            {
-                var curToken = tokens[i];
-                if (curToken.Contains(';'))
-                {
-                    // the token with ; is the end of the header
-                    string[] eohTokens = curToken.Split(';');
-                    headerTokens[i] = eohTokens[0];
-                    commandTokens.Add(eohTokens[1]);
-                    var count = headerTokens.Count - i - 1;
-                    headerTokens.RemoveRange(i + 1, count);
-                    commandIdx = i + 1;
-                    break;
-                }
-            }
-            headerTokens.Insert(0, "#");
-
-            for (; commandIdx < tokens.Length; commandIdx += 1)
-            {
-                commandTokens.Add(tokens[commandIdx]);
-            }
-
-            return (headerTokens, commandTokens);
         }
 
         #region Methods
@@ -391,7 +320,7 @@ namespace CSharpSampleCode
         // <param name="timeOut">Timeout in milisseconds. 10000 is the default</
         // param>
         // <returns></returns>
-        public static byte[] getNovatelMessage(NovatelReader rd) 
+        public static byte[] GetNovatelMessage(NovatelReader rd) 
         {
             long timeOutLimit = DateTime.Now.Ticks + (TimeSpan.TicksPerMillisecond * rd.Timeout);
 #if DEBUG
@@ -440,10 +369,10 @@ namespace CSharpSampleCode
 
                             ulong crc32 = BitConverter.ToUInt32(crc, 0);
 
-                            if (crc32 == CalculateBlockCRC32(message)) //If the calculated CRC matches the received CRC, return the message
+                            if (crc32 == Util.CalculateBlockCRC32(message)) //If the calculated CRC matches the received CRC, return the message
                                 return message;
-                            else
-                                readFirst = true;
+
+                            readFirst = true;
                         }
                         else if (header[2] == 0xAA) // If the byte found is 0xAA it will be used in the next loop
                             readFirst = false;
@@ -460,196 +389,6 @@ namespace CSharpSampleCode
             } while (timeOutLimit > DateTime.Now.Ticks);
             return Array.Empty<byte>();
         }
-
-        #region Crc Calculations
-        /// <summary>
-        /// Calculate a CRC value to be used by CRC calculation functions.
-        /// </summary>
-        /// <param name="i"></param>
-        /// <returns></returns>
-        public static ulong CRC32Value(int i)
-        {
-            const ulong CRC32_POLYNOMIAL = 0xEDB88320L;
-            int j;
-            ulong ulCRC;
-            ulCRC = (ulong)i;
-            for (j = 8; j > 0; j--)
-            {
-                if ((ulCRC & 1) == 1)
-                    ulCRC = (ulCRC >> 1) ^ CRC32_POLYNOMIAL;
-                else
-                    ulCRC >>= 1;
-            }
-            return ulCRC;
-        }
-
-        /// <summary>
-        /// Calculates the CRC-32 of a block of data all at once
-        /// </summary>
-        /// <param name="buffer">byte[] to calculate the CRC-32</param>
-        /// <returns></returns>
-        public static ulong CalculateBlockCRC32(byte[] buffer)
-        {
-            ulong ulTemp1;
-            ulong ulTemp2;
-            ulong ulCRC = 0;
-
-            for (int i = 0; i < buffer.Length; i++)
-            {
-                ulTemp1 = (ulCRC >> 8) & 0x00FFFFFFL;
-                ulTemp2 = CRC32Value(((int)ulCRC ^ buffer[i]) & 0xff);
-                ulCRC = ulTemp1 ^ ulTemp2;
-            }
-            return (ulCRC);
-        }
-        public static ulong CalculateBlockCRC32(string s, int idxBgn, int idxEnd)
-        {
-            ulong ulTemp1;
-            ulong ulTemp2;
-            ulong ulCRC = 0;
-
-            for (int i = idxBgn; i < idxEnd; i++)
-            {
-                ulTemp1 = (ulCRC >> 8) & 0x00FFFFFFL;
-                ulTemp2 = CRC32Value(((int)ulCRC ^ s[i]) & 0xff);
-                ulCRC = ulTemp1 ^ ulTemp2;
-            }
-            return (ulCRC);
-        }
-        #endregion
-
-        /// <summary>
-        /// Decode a Binary message and output some data based on the Message ID
-        /// </summary>
-        /// <param name="message"></param>
-        public static void DecodeBinaryMessage(byte[] message)
-        {
-            int h = message[3]; //header size, for offset
-            int logType = BitConverter.ToUInt16(message, 4);
-
-            // Decode the log based on its type
-            var binaryLogType = (BINARY_LOG_TYPE)logType;
-            switch (binaryLogType)
-            {
-                case BINARY_LOG_TYPE.BESTPOSB_LOG_TYPE:
-                    var msg = Logs.Bestpos.Decode(message, logType, h);
-                    Console.WriteLine(msg.ToPrettyString());
-                    Console.WriteLine($"Bestpos:\n{msg}\n\n");
-                    break;
-
-                case BINARY_LOG_TYPE.VERB_LOG_TYPE:
-                    DecodeVersion(message, logType, h);
-                    break;
-                default:
-                    Console.WriteLine($"*** Unhandled binaryLogType={binaryLogType}");
-                    break;
-            }
-        }
-
-
-        private static void DecodeVersion(byte[] message, int logType, int h)
-        {
-            Console.WriteLine("**** VERSION LOG DECODED:");
-            Console.WriteLine("* Message ID     : " + logType);
-
-            int numberComp = BitConverter.ToInt32(message, h);
-            Console.WriteLine("* # of Components: " + numberComp);
-
-            for (int i = 0; i < numberComp; i++)
-            {
-                DecodeVersionComponent(message, h, i);
-            }
-        }
-
-        private static void DecodeVersionComponent(byte[] message, int h, int i)
-        {
-            int offset = h + (i * 108);
-
-            int compType = BitConverter.ToInt32(message, offset + 4);
-            Console.WriteLine($"* {i:d02}: Component Type : " + GetCompTypeString(compType));
-
-
-            string model = new string(Encoding.ASCII.GetChars(message, offset + 8, 16));
-            if (model.Contains('\0'))
-                model = model.Substring(0, model.IndexOf('\0'));
-            Console.WriteLine("   * Comp Model  : " + model);
-
-            string psn = new string(Encoding.ASCII.GetChars(message, offset + 24, 16));
-            if (psn.Contains('\0'))
-                psn = psn.Substring(0, psn.IndexOf('\0'));
-            Console.WriteLine("   * Serial #    : " + psn);
-
-            string hwVersion = new string(Encoding.ASCII.GetChars(message, offset + 40, 16));
-            if (hwVersion.Contains('\0'))
-                hwVersion = hwVersion.Substring(0, hwVersion.IndexOf('\0'));
-            Console.WriteLine("   * Hw Version  : " + hwVersion);
-
-            string swVersion = new string(Encoding.ASCII.GetChars(message, offset + 56, 16));
-            if (swVersion.Contains('\0'))
-                swVersion = swVersion.Substring(0, swVersion.IndexOf('\0'));
-            Console.WriteLine("   * Sw Version  : " + swVersion);
-
-            string bootVersion = new string(Encoding.ASCII.GetChars(message, offset + 72, 16));
-            if (bootVersion.Contains('\0'))
-                bootVersion = bootVersion.Substring(0, bootVersion.IndexOf('\0'));
-            Console.WriteLine("   * Boot Version: " + bootVersion);
-
-            string compDate = new string(Encoding.ASCII.GetChars(message, offset + 88, 12));
-            if (compDate.Contains('\0'))
-                compDate = compDate.Substring(0, compDate.IndexOf('\0'));
-            Console.WriteLine("   * Fw Comp Date: " + compDate);
-
-            string compTime = new string(Encoding.ASCII.GetChars(message, offset + 100, 12));
-            if (compTime.Contains('\0'))
-                compTime = compTime.Substring(0, compTime.IndexOf('\0'));
-            Console.WriteLine("   * Fw Comp Time: " + compTime);
-        }
-
-        public enum BINARY_LOG_TYPE
-        {
-            VERB_LOG_TYPE = 37,
-            BESTPOSB_LOG_TYPE = 42,
-        }
-
-        #region Component Types
-        enum COMPONENT_TYPE
-        {
-            UNKNOWN = 0,                 // Unknown component
-            GPSCARD = 1,                 // GPSCard
-            CONTROLLER = 2,                 // Reserved
-            ENCLOSURE = 3,                 // OEM card enclosure
-            USERINFO = 8,                 // App specific Information
-            DB_HEIGHTMODEL = (0x3A7A0000 | 0),  //Height/track model data
-            DB_USERAPP = (0x3A7A0000 | 1),  // User application firmware
-            DB_USERAPPAUTO = (0x3A7A0000 | 5),  // Auto-starting user application firmware
-            OEM6FPGA = 12,                // OEM638 FPGA version
-            GPSCARD2 = 13,                // Second card in a ProPak6
-            BLUETOOTH = 14,                // Bluetooth component in a ProPak6
-            WIFI = 15,                // Wifi component in a ProPak6
-            CELLULAR = 16,                // Cellular component in a ProPak6
-        };
-
-        public static string GetCompTypeString(int compType)
-        {
-            switch ((COMPONENT_TYPE)compType)
-            {
-                case COMPONENT_TYPE.GPSCARD: return "OEM family component";
-                case COMPONENT_TYPE.CONTROLLER: return "Reserved";
-                case COMPONENT_TYPE.ENCLOSURE: return "OEM card enclosure";
-                case COMPONENT_TYPE.USERINFO: return "Application specific information";
-                case COMPONENT_TYPE.DB_HEIGHTMODEL: return "Height/track model data";
-                case COMPONENT_TYPE.DB_USERAPP: return "User application firmware";
-                case COMPONENT_TYPE.DB_USERAPPAUTO: return "Auto-starting user application firmware";
-                case COMPONENT_TYPE.OEM6FPGA: return "OEM638 FPGA version";
-                case COMPONENT_TYPE.GPSCARD2: return "Second card in a ProPak6";
-                case COMPONENT_TYPE.BLUETOOTH: return "Bluetooth component in a ProPak6";
-                case COMPONENT_TYPE.WIFI: return "Wi-Fi component in a ProPak6";
-                case COMPONENT_TYPE.CELLULAR: return "Cellular component in a ProPak6";
-                default:
-                    return "Unknown component";
-            }
-        }
-        #endregion
 #endregion
 
     }
