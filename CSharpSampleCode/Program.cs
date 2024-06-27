@@ -6,6 +6,7 @@ using System.Text;
 using System.Threading;
 using System.IO.Ports;
 using System.Net.Sockets;
+using System.ComponentModel.DataAnnotations;
 
 namespace CSharpSampleCode
 {
@@ -108,6 +109,31 @@ namespace CSharpSampleCode
                     Console.WriteLine("Unfortunately an " + ex.GetType().Name + " happened.");
                 }
             }
+            #endregion
+
+            #region Owil Messages
+            // Shakuntala said the InertialExplorer app needs the following logs
+            // for its correction post-processing
+            //
+            // LOG RANGECMPB ONTIME 1
+            // LOG GPSEPHEMB ONNEW
+            // LOG GLOEPHEMERISB ONNEW
+            // LOG GALINAVEPHEMERISB ONNEW
+            // LOG GALFNAVEPHEMERISB ONNEW
+            // LOG BDSEPHEMERISB ONNEW
+            // LOG QZSSEPHEMERISB ONNEW
+            // LOG RAWIMUSXB ONNEW
+            // LOG VERSIONB ONCE
+            // LOG RXCONFIGB ONCE
+            // LOG RXSTATUSB ONCE
+            // LOG THISANTENNATYPEB ONCE
+            // LOG INSPVAXB ONTIME 1
+            // LOG BESTPOSB ONTIME 1
+            // LOG BESTGNSSPOSB ONTIME 1
+            // LOG TIMEB ONTIME 1
+            // LOG HEADING2B ONNEW
+            // LOG INSCONFIGB ONCHANGED
+            // LOG INSUPDATESTATUSB ONCHANGED
             #endregion
         }
 
@@ -662,90 +688,65 @@ namespace CSharpSampleCode
         #region Solution Status
         public enum SOLN_STATUS
         {
+            [Display(Name = "Solution status not set")]
             SOLN_STATUS_NOT_SET = -2,
             SOLN_STATUS_MIN = -1,
+            [Display(Name = "Solution computed")]
             SOLN_STATUS_SOLUTION_COMPUTED = 0,
+            [Display(Name = "Insufficient observations")]
             SOLN_STATUS_INSUFFICIENT_OBS = 1,
+            [Display(Name = "No convergence")]
             SOLN_STATUS_NO_CONVERGENCE = 2,
+            [Display(Name = "Singular AtPA matrix")]
             SOLN_STATUS_SINGULAR_AtPA_MATRIX = 3,
+            [Display(Name = "Covariance trace exceeds maximum (trace > 1000 m)")]
             SOLN_STATUS_BIG_COVARIANCE_TRACE = 4,
+            [Display(Name = "Test distance exceeded (maximum of 3 rejections if distance > 10 km)")]
             SOLN_STATUS_BIG_TEST_DISTANCE = 5,
+            [Display(Name = "Converging from cold start")]
             SOLN_STATUS_COLD_START = 6,
+            [Display(Name = "CoCom limits exceeded")]
             SOLN_STATUS_SPEED_OR_HEIGHT_LIMITS_EXCEEDED = 7,
+            [Display(Name = "Variance exceeds limits")]
             SOLN_STATUS_VARIANCE_EXCEEDS_LIMIT = 8,
+            [Display(Name = "Residuals are too large")]
             SOLN_STATUS_RESIDUALS_ARE_TOO_LARGE = 9,
+            [Display(Name = "Delta position is too large")]
             SOLN_STATUS_DELTA_POSITION_IS_TOO_LARGE = 10,
+            [Display(Name = "Negative variance")]
             SOLN_STATUS_NEGATIVE_VARIANCE = 11,
+            [Display(Name = "The position is old")]
             SOLN_STATUS_OLD_SOLUTION = 12,
+            [Display(Name = "Integrity warning")]
             SOLN_STATUS_INTEGRITY_WARNING = 13,
+            [Display(Name = "INS has not started yet")]
             SOLN_STATUS_INS_INACTIVE = 14,
+            [Display(Name = "INS doing its coarse alignment")]
             SOLN_STATUS_INS_ALIGNING = 15,
+            [Display(Name = "INS position is bad")]
             SOLN_STATUS_INS_BAD = 16,
+            [Display(Name = "No IMU detected")]
             SOLN_STATUS_IMU_UNPLUGGED = 17,
+            [Display(Name = "Not enough satellites to verify FIX POSITION")]
             SOLN_STATUS_PENDING = 18,
+            [Display(Name = "Fixed position is not valid")]
             SOLN_STATUS_INVALID_FIX = 19,
+            [Display(Name = "Position type (HP or XP) not authorized")]
             SOLN_STATUS_UNAUTHORIZED = 20,
+            [Display(Name = "Selected RTK antenna mode not possible")]
             SOLN_STATUS_ANTENNA_WARNING = 21,
+            [Display(Name = "Logging rate not supported for this solution type")]
             SOLN_STATUS_INVALID_RATE = 22,
 
             SOLN_STATUS_MAX
         };
 
-        public static string GetSolnStatusString(int solnStatus)
+        public static string GetSolnStatusString(int solnStatus_)
         {
-            switch ((SOLN_STATUS)solnStatus)
-            {
-                case SOLN_STATUS.SOLN_STATUS_NOT_SET:
-                    return "Solution status not set";
-                case SOLN_STATUS.SOLN_STATUS_SOLUTION_COMPUTED:
-                    return "Solution computed";
-                case SOLN_STATUS.SOLN_STATUS_INSUFFICIENT_OBS:
-                    return "Insufficient observations";
-                case SOLN_STATUS.SOLN_STATUS_NO_CONVERGENCE:
-                    return "No convergence";
-                case SOLN_STATUS.SOLN_STATUS_SINGULAR_AtPA_MATRIX:
-                    return "Singular AtPA matrix";
-                case SOLN_STATUS.SOLN_STATUS_BIG_COVARIANCE_TRACE:
-                    return "Covariance trace exceeds maximum (trace > 1000 m)";
-                case SOLN_STATUS.SOLN_STATUS_BIG_TEST_DISTANCE:
-                    return "Test distance exceeded (maximum of 3 rejections if distance > 10 km)";
-                case SOLN_STATUS.SOLN_STATUS_COLD_START:
-                    return "Converging from cold start";
-                case SOLN_STATUS.SOLN_STATUS_SPEED_OR_HEIGHT_LIMITS_EXCEEDED:
-                    return "CoCom limits exceeded";
-                case SOLN_STATUS.SOLN_STATUS_VARIANCE_EXCEEDS_LIMIT:
-                    return "Variance exceeds limits";
-                case SOLN_STATUS.SOLN_STATUS_RESIDUALS_ARE_TOO_LARGE:
-                    return "Residuals are too large";
-                case SOLN_STATUS.SOLN_STATUS_DELTA_POSITION_IS_TOO_LARGE:
-                    return "Delta position is too large";
-                case SOLN_STATUS.SOLN_STATUS_NEGATIVE_VARIANCE:
-                    return "Negative variance";
-                case SOLN_STATUS.SOLN_STATUS_OLD_SOLUTION:
-                    return "The position is old";
-                case SOLN_STATUS.SOLN_STATUS_INTEGRITY_WARNING:
-                    return "Integrity warning";
-                case SOLN_STATUS.SOLN_STATUS_INS_INACTIVE:
-                    return "INS has not started yet";
-                case SOLN_STATUS.SOLN_STATUS_INS_ALIGNING:
-                    return "INS doing its coarse alignment";
-                case SOLN_STATUS.SOLN_STATUS_INS_BAD:
-                    return "INS position is bad";
-                case SOLN_STATUS.SOLN_STATUS_IMU_UNPLUGGED:
-                    return "No IMU detected";
-                case SOLN_STATUS.SOLN_STATUS_PENDING:
-                    return "Not enough satellites to verify FIX POSITION";
-                case SOLN_STATUS.SOLN_STATUS_INVALID_FIX:
-                    return "Fixed position is not valid";
-                case SOLN_STATUS.SOLN_STATUS_UNAUTHORIZED:
-                    return "Position type (HP or XP) not authorized";
-                case SOLN_STATUS.SOLN_STATUS_ANTENNA_WARNING:
-                    return "Selected RTK antenna mode not possible";
-                case SOLN_STATUS.SOLN_STATUS_INVALID_RATE:
-                    return "Logging rate not supported for this solution type";
-            }
-            return "Unknown solution status";
+            var solnStatus = (SOLN_STATUS)solnStatus_;
+            return solnStatus.GetDisplayName();
         }
+
         #endregion
         #region Position Type
         public enum POSTYPE
