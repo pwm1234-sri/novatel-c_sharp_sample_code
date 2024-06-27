@@ -28,6 +28,18 @@ public class NovatelReader
     public static (TcpClient, NovatelReader) CreateEthernet(string hostname,
         int port)
     {
+        // See [Static IP Address Configuration]
+        // (https://docs.novatel.com/OEM7/Content/Ethernet_Configuration/Static_IP_Address_Config.htm#StaticIP_Receiver)
+        // for details on how to configure the ethernet settings for a CPT-7
+        // receiver. If the ethernet address is already set, then you can use
+        // the following command to create the port. 
+        // 
+        // ICOMCONFIG ICOM1 TCP :2000
+        //
+        // There is some bootstrapping involved here; you will need a USB/COM
+        // connection to configure the ethernet settings. And when connecting
+        // to the webserver running on the receiver, the default password, if
+        // needed, is the product serial number (PSN).
         var tcpClient = new TcpClient(hostname, port);
         NetworkStream ns = tcpClient.GetStream();
         ns.ReadTimeout = 1000;
