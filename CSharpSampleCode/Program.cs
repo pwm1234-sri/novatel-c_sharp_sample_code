@@ -534,7 +534,7 @@ namespace CSharpSampleCode
             switch (binaryLogType)
             {
                 case BINARY_LOG_TYPE.BESTPOSB_LOG_TYPE:
-                    var msg = DecodeBestpos(message, logType, h);
+                    var msg = Bestpos.Decode(message, logType, h);
                     Console.WriteLine(msg.ToPrettyString());
                     Console.WriteLine($"Bestpos:\n{msg}\n\n");
                     break;
@@ -561,7 +561,7 @@ namespace CSharpSampleCode
             public float LatSigma { get; set; }
             public float LonSigma { get; set; }
             public float HgtSigma { get; set; }
-            public string BaseId { get; set; }
+            public string BaseId { get; set; } = string.Empty;
             public float DiffAge { get; set; }
             public float SolutionAge { get; set; }
             public int NumSatsTracked { get; set; }
@@ -619,41 +619,41 @@ namespace CSharpSampleCode
 
                 return sb.ToString();
             }
+            public static Bestpos Decode(byte[] message, int logType, int h)
+            {
+                Bestpos val = new();
+                val.LogType = logType;
+                int solnStatus = BitConverter.ToInt32(message, h);
+                val.SolutionStatus = (SOLN_STATUS)solnStatus;
+                int posType = BitConverter.ToInt32(message, h + 4);
+                val.PositionType = (POSTYPE)posType;
+                val.Lat = BitConverter.ToDouble(message, h + 8);
+                val.Lon = BitConverter.ToDouble(message, h + 16);
+                val.Hgt = BitConverter.ToDouble(message, h + 24);
+                val.Undulation = BitConverter.ToSingle(message, h + 32);
+                val.Datum = BitConverter.ToInt32(message, h + 36);
+                val.LatSigma = BitConverter.ToSingle(message, h + 40);
+                val.LonSigma = BitConverter.ToSingle(message, h + 44);
+                val.HgtSigma = BitConverter.ToSingle(message, h + 48);
+                var baseId = new string(Encoding.ASCII.GetChars(message, h + 52, 4));
+                if (baseId.Contains('\0'))
+                    baseId = baseId.Substring(0, baseId.IndexOf('\0'));
+                val.BaseId = baseId;
+                val.DiffAge = BitConverter.ToSingle(message, h + 56);
+                val.SolutionAge = BitConverter.ToSingle(message, h + 60);
+                val.NumSatsTracked = message[h + 64];
+                val.NumSatsInSolution = message[h + 65];
+                val.NumSatsWithL1E1B1 = message[h + 66];
+                val.NumSatsMultiFreq = message[h + 67];
+                val.ExtSolutionStatus = message[h + 69];
+                val.GalileoSigMask = message[h + 70];
+                val.GpsSigMask = message[h + 71];
+
+                return val;
+            }
         }
 
 
-        private static Bestpos DecodeBestpos(byte[] message, int logType, int h)
-        {
-            Bestpos val = new();
-            val.LogType = logType;
-            int solnStatus = BitConverter.ToInt32(message, h);
-            val.SolutionStatus = (SOLN_STATUS)solnStatus;
-            int posType = BitConverter.ToInt32(message, h + 4);
-            val.PositionType = (POSTYPE)posType;
-            val.Lat = BitConverter.ToDouble(message, h + 8);
-            val.Lon = BitConverter.ToDouble(message, h + 16);
-            val.Hgt = BitConverter.ToDouble(message, h + 24);
-            val.Undulation = BitConverter.ToSingle(message, h + 32);
-            val.Datum = BitConverter.ToInt32(message, h + 36);
-            val.LatSigma = BitConverter.ToSingle(message, h + 40);
-            val.LonSigma = BitConverter.ToSingle(message, h + 44);
-            val.HgtSigma = BitConverter.ToSingle(message, h + 48);
-            var baseId = new string(Encoding.ASCII.GetChars(message, h + 52, 4));
-            if (baseId.Contains('\0'))
-                baseId = baseId.Substring(0, baseId.IndexOf('\0'));
-            val.BaseId = baseId;
-            val.DiffAge = BitConverter.ToSingle(message, h + 56);
-            val.SolutionAge = BitConverter.ToSingle(message, h + 60);
-            val.NumSatsTracked = message[h + 64];
-            val.NumSatsInSolution = message[h + 65];
-            val.NumSatsWithL1E1B1 = message[h + 66];
-            val.NumSatsMultiFreq = message[h + 67];
-            val.ExtSolutionStatus = message[h + 69];
-            val.GalileoSigMask = message[h + 70];
-            val.GpsSigMask = message[h + 71];
-
-            return val;
-        }
 
         private static void DecodeVersion(byte[] message, int logType, int h)
         {
