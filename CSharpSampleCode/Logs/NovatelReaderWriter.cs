@@ -8,13 +8,13 @@ using CommunityToolkit.Diagnostics;
 
 namespace CSharpSampleCode.Logs;
 
-public class NovatelReader
+public class NovatelReaderWriter
 {
     private readonly SerialPort? _serialPort;
     private readonly StreamReader? _streamReader;
     private readonly NetworkStream? _streamWriter;
 
-    public NovatelReader(SerialPort? sp, StreamReader? sr, NetworkStream? ns, int timeOut)
+    public NovatelReaderWriter(SerialPort? sp, StreamReader? sr, NetworkStream? ns, int timeOut)
     {
         _serialPort = sp;
         _streamReader = sr;
@@ -25,7 +25,7 @@ public class NovatelReader
             sp.ReadTimeout = timeOut;
         }
     }
-    public static (TcpClient, NovatelReader) CreateEthernet(string hostname,
+    public static (TcpClient, NovatelReaderWriter) CreateEthernet(string hostname,
         int port)
     {
         // See [Static IP Address Configuration]

@@ -3,10 +3,10 @@ using System.IO;
 using System.IO.Ports;
 using System.Net.Sockets;
 using CommunityToolkit.Diagnostics;
+using CSharpSampleCode.Logs;
 
 namespace CSharpSampleCode;
 
-using NovatelReader = Logs.NovatelReader;
 using static Logs.Util;
 
 class Program
@@ -20,7 +20,7 @@ class Program
         args = Array.Empty<string>();
 #endif
         TcpClient? tcpClient = null;
-        NovatelReader? rd = null;
+        NovatelReaderWriter? rd = null;
         if (args.Length == 0)
         {
             (tcpClient, rd) = TestEthernet();
@@ -30,7 +30,7 @@ class Program
         SerialPort? serialPort = null;
         if (myclient is null)
         {
-            serialPort = NovatelReader.CreateSerialPort(args);
+            serialPort = NovatelReaderWriter.CreateSerialPort(args);
             if (serialPort is null)
             {
                 string argStr = string.Join(", ", args);
@@ -133,9 +133,9 @@ class Program
         #endregion
     }
 
-    private static (TcpClient, NovatelReader) TestEthernet()
+    private static (TcpClient, NovatelReaderWriter) TestEthernet()
     {
-        var (tcpClient, rd) = NovatelReader.CreateEthernet("192.168.1.16", 2000);
+        var (tcpClient, rd) = NovatelReaderWriter.CreateEthernet("192.168.1.16", 2000);
         Guard.IsNotNull(rd.StreamReader);
         rd.ResetLogs();
 
